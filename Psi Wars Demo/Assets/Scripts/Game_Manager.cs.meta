@@ -3,7 +3,33 @@ guid: 402abf1603b50664a9f31a30eb999526
 MonoImporter:
   externalObjects: {}
   serializedVersion: 2
-  defaultReferences: []
+  defaultReferences:
+  - RedResource: {fileID: 6024613506979628717, guid: 1da8bb0f522a79e4aa17173794fa15c6, type: 3}
+  - BlueResource: {fileID: 6024613506979628717, guid: 0eef91f7f9ac09f4186210e59780188d, type: 3}
+  - GreenResource: {fileID: 6024613506979628717, guid: 0026e3585b9a61d46a499ec1a06c4901, type: 3}
+  - PurpleResource: {fileID: 6024613506979628717, guid: f79b50ab2a3433b49bedb6cec080e923, type: 3}
+  - sianaCreatureCommander: {instanceID: 0}
+  - daviliamRobotCommander: {instanceID: 0}
+  - hydraBot: {instanceID: 0}
+  - laquidorStalker: {instanceID: 0}
+  - therabot: {instanceID: 0}
+  - jingwaPsiAvenger: {instanceID: 0}
+  - trangareyScythe: {instanceID: 0}
+  - lifeSnatcher: {instanceID: 0}
+  - bladeMaster: {instanceID: 0}
+  - lodnerPredator: {instanceID: 0}
+  - zomberMercenary: {instanceID: 0}
+  - cyberOnslaught: {instanceID: 0}
+  - veqianCyberDefense: {instanceID: 0}
+  - mentalShield: {instanceID: 0}
+  - psionicBolster: {instanceID: 0}
+  - intelliborgFusion: {instanceID: 0}
+  - kranthardArmour: {instanceID: 0}
+  - beingRegenerate: {instanceID: 0}
+  - equipmentHunter: {instanceID: 0}
+  - equipmentMechanic: {instanceID: 0}
+  - grankorStasisField: {instanceID: 0}
+  - highEnergyPulse: {instanceID: 0}
   executionOrder: 0
   icon: {instanceID: 0}
   userData: 

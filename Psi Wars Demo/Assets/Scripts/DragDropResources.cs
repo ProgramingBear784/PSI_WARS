@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class DragDropResources : MonoBehaviour
 {
@@ -27,11 +28,14 @@ public class DragDropResources : MonoBehaviour
     private bool isDragging = false;
     
 
-    void Start()
+    void Awake()
     {
+
+        gm = GameObject.Find("Game_Manager").GetComponent<Game_Manager>();
 
         Canvas = GameObject.Find("Main Canvas");
         DropZone = GameObject.Find("P1Resource_Area");
+
 
         digitalSplicingColumn = GameObject.Find("digitalSplicingColumn");
         neurogenesisColumn = GameObject.Find("neurogenesisColumn");
@@ -43,7 +47,8 @@ public class DragDropResources : MonoBehaviour
     private void OnCollisionEnter2D(Collision2D collision)
     {
         dropZone = collision.gameObject;
-        if (dropZone == DropZone){   
+        if (dropZone == DropZone)
+        {   
             isOverDropZone = true;
         }
     }
@@ -66,10 +71,10 @@ public class DragDropResources : MonoBehaviour
         isDragging = false;
         if ((isOverDropZone) && (dropZone == DropZone))
         {
-
             int index = 0;
-            for (int i = 0; i < Game_Manager.handCards.Count; i++){
-                if (gameObject.name == Game_Manager.handCards[i].Name){
+            for (int i = 0; i < gm.handCards.Count; i++){
+                if (gameObject.name == gm.handCards[i].Name)
+                {
                     index = i;
                 }
             } 
@@ -78,33 +83,33 @@ public class DragDropResources : MonoBehaviour
             {
                 GameObject greenResourceLight = Instantiate<GameObject>(digitalSplicingResourceLight, new Vector2(0, 0), Quaternion.identity);
                 greenResourceLight.transform.SetParent(digitalSplicingColumn.transform, false);
-                Game_Manager.totalGreenResources = digitalSplicingColumn.transform.childCount;
-                Game_Manager.greenResourcesAvailable += 1;
+                gm.totalGreenResources = digitalSplicingColumn.transform.childCount;
+                gm.greenResourcesAvailable += 1;
             } 
             else if (gameObject.transform.name.Contains("neurogenesis"))
             {
                 GameObject blueResourceLight = Instantiate<GameObject>(neurogenesisResourceLight, new Vector2(0, 0), Quaternion.identity);
                 blueResourceLight.transform.SetParent(neurogenesisColumn.transform, false);
-                Game_Manager.totalBlueResources = neurogenesisColumn.transform.childCount;
-                Game_Manager.blueResourcesAvailable += 1;
+                gm.totalBlueResources = neurogenesisColumn.transform.childCount;
+                gm.blueResourcesAvailable += 1;
             }
             else if (gameObject.transform.name.Contains("bioAcceleration"))
             {
                 GameObject redResourceLight = Instantiate<GameObject>(bioAccelerationResourceLight, new Vector2(0, 0), Quaternion.identity);
                 redResourceLight.transform.SetParent(bioAccelerationColumn.transform, false);
-                Game_Manager.totalRedResources = bioAccelerationColumn.transform.childCount;
-                Game_Manager.redResourcesAvailable += 1;
+                gm.totalRedResources = bioAccelerationColumn.transform.childCount;
+                gm.redResourcesAvailable += 1;
             }
             else if (gameObject.transform.name.Contains("materialAnimation"))
             {
                 GameObject purpleResourceLight = Instantiate<GameObject>(materialAnimationResourceLight, new Vector2(0, 0), Quaternion.identity);
                 purpleResourceLight.transform.SetParent(materialAnimationColumn.transform, false);
-                Game_Manager.totalPurpleResources = materialAnimationColumn.transform.childCount;
-                Game_Manager.purpleResourcesAvailable += 1;
+                gm.totalPurpleResources = materialAnimationColumn.transform.childCount;
+                gm.purpleResourcesAvailable += 1;
             }
 
             gameObject.SetActive(false);
-            Game_Manager.handCards.RemoveAt(index);
+            gm.handCards.RemoveAt(index);
 
         } 
         else
