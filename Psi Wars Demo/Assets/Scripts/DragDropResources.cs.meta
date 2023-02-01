@@ -4,11 +4,11 @@ MonoImporter:
   externalObjects: {}
   serializedVersion: 2
   defaultReferences:
-  - digitalSplicingResourceLight: {fileID: 6024613506979628717, guid: 0026e3585b9a61d46a499ec1a06c4901, type: 3}
-  - neurogenesisResourceLight: {fileID: 6024613506979628717, guid: 0eef91f7f9ac09f4186210e59780188d, type: 3}
-  - bioAccelerationResourceLight: {fileID: 6024613506979628717, guid: 1da8bb0f522a79e4aa17173794fa15c6, type: 3}
-  - materialAnimationResourceLight: {fileID: 6024613506979628717, guid: f79b50ab2a3433b49bedb6cec080e923, type: 3}
-  - gm: {fileID: 8569768043016201829, guid: df91844e3d2948b47b72b6a148285fad, type: 3}
+  - gm: {instanceID: 0}
+  - digitalSplicingResourceLight: {instanceID: 0}
+  - neurogenesisResourceLight: {instanceID: 0}
+  - bioAccelerationResourceLight: {instanceID: 0}
+  - materialAnimationResourceLight: {instanceID: 0}
   executionOrder: 0
   icon: {instanceID: 0}
   userData: 

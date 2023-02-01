@@ -1152,7 +1152,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5328634017954368720, guid: 42fff78b58da18c44888305afbe0585e, type: 3}
       propertyPath: m_Size.x
-      value: 285.65002
+      value: 226.6134
       objectReference: {fileID: 0}
     - target: {fileID: 5328634017954368720, guid: 42fff78b58da18c44888305afbe0585e, type: 3}
       propertyPath: m_Size.y
@@ -1160,7 +1160,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5328634017954368720, guid: 42fff78b58da18c44888305afbe0585e, type: 3}
       propertyPath: m_Offset.x
-      value: 34.434265
+      value: 63.952576
       objectReference: {fileID: 0}
     - target: {fileID: 5328634017954368720, guid: 42fff78b58da18c44888305afbe0585e, type: 3}
       propertyPath: m_Offset.y
@@ -2780,7 +2780,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8607858131009958269, guid: f999b16df6ac3c040a017ad2c7162d34, type: 3}
       propertyPath: m_Spacing.x
-      value: -70
+      value: -60
       objectReference: {fileID: 0}
     - target: {fileID: 3760015904815004354, guid: f999b16df6ac3c040a017ad2c7162d34, type: 3}
       propertyPath: m_Pivot.x
