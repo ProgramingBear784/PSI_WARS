@@ -50,30 +50,30 @@ public class PsiWarsGame : MonoBehaviour
 
     private void Awake()
     {
-        // Disable all existing canvases so the old scene doesn't show through
+        // Disable old canvas GameObjects entirely so their UI elements can't block input
         foreach (var c in FindObjectsOfType<Canvas>())
-            c.enabled = false;
-
-        // Destroy Mirror NetworkManager (and its HUD)
-        foreach (var mb in FindObjectsOfType<MonoBehaviour>())
-        {
-            if (mb == null) continue;
-            var typeName = mb.GetType().FullName ?? "";
-            if (typeName.StartsWith("Mirror."))
-                Destroy(mb.gameObject);
-        }
+            c.gameObject.SetActive(false);
     }
 
     private void Start()
     {
         EnsureEventSystem();
+        EnsureGameManager();
         BuildUI();
         ShowPanel(_setupPanel);
     }
 
+    private static void EnsureGameManager()
+    {
+        if (GameManager.Instance != null) return;
+        new GameObject("GameManager").AddComponent<GameManager>();
+    }
+
     private static void EnsureEventSystem()
     {
-        if (FindObjectOfType<EventSystem>() != null) return;
+        // Search inactive objects too in case the old EventSystem was deactivated with its canvas
+        var existing = FindObjectOfType<EventSystem>(true);
+        if (existing != null) { existing.gameObject.SetActive(true); return; }
         var es = new GameObject("EventSystem");
         es.AddComponent<EventSystem>();
         es.AddComponent<StandaloneInputModule>();
@@ -296,12 +296,17 @@ public class PsiWarsGame : MonoBehaviour
     private void OnStartGame()
     {
         var gm = GameManager.Instance;
+        if (gm == null) { Debug.LogError("[PsiWars] GameManager.Instance is null"); return; }
+
+        Debug.Log($"[PsiWars] Starting game. _gamePanel={((_gamePanel==null)?"NULL":"OK")} _p0HP={((_p0HP==null)?"NULL":"OK")} _btnNext={((_btnNext==null)?"NULL":"OK")}");
+
         gm.onGameStateChanged.AddListener(RefreshUI);
         gm.onPhaseChanged.AddListener(OnPhaseChanged);
         gm.onTurnChanged.AddListener(OnTurnChanged);
         gm.onGameOver.AddListener(OnGameOver);
-        gm.StartGame(_selHP);
+
         ShowPanel(_gamePanel);
+        gm.StartGame(_selHP);
         RefreshUI();
     }
 
@@ -346,6 +351,7 @@ public class PsiWarsGame : MonoBehaviour
     private void RefreshUI()
     {
         if (GameManager.Instance?.Players == null) return;
+        if (_p0HP == null || _btnNext == null) return; // game panel not built yet
         UpdateHUD();
         RebuildZones();
         UpdateButtons();
@@ -744,8 +750,8 @@ public class PsiWarsGame : MonoBehaviour
 
     private void ShowPanel(GameObject panel)
     {
-        _setupPanel.SetActive(panel == _setupPanel);
-        _gamePanel.SetActive(panel  == _gamePanel);
+        if (_setupPanel != null) _setupPanel.SetActive(panel == _setupPanel);
+        if (_gamePanel  != null) _gamePanel.SetActive(panel  == _gamePanel);
     }
 
     private void ShowMsg(string msg, System.Action onOk)
