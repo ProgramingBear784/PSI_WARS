@@ -5,7 +5,9 @@
       "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\Adeev\\\\OneDrive\\\\Documents\\\\GitHub\\\\PSI_WARS\\\\Psi Wars Demo\\\\Assets\" | Where-Object {$_.PSIsContainer} | Select-Object Name)",
       "Bash(Get-Content \"c:\\\\Users\\\\Adeev\\\\OneDrive\\\\Documents\\\\GitHub\\\\PSI_WARS\\\\Psi Wars Demo\\\\Assets\\\\Scripts\\\\Core\\\\GameManager.cs.meta\")",
       "Bash(Select-String \"guid\")",
-      "Bash(Get-Content \"c:\\\\Users\\\\Adeev\\\\OneDrive\\\\Documents\\\\GitHub\\\\PSI_WARS\\\\Psi Wars Demo\\\\Assets\\\\Scripts\\\\UI\\\\PsiWarsGame.cs.meta\")"
+      "Bash(Get-Content \"c:\\\\Users\\\\Adeev\\\\OneDrive\\\\Documents\\\\GitHub\\\\PSI_WARS\\\\Psi Wars Demo\\\\Assets\\\\Scripts\\\\UI\\\\PsiWarsGame.cs.meta\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\user\\\\Documents\\\\GitHub\\\\PSI_WARS\" -Recurse -Filter \"*.md\")",
+      "Bash(Select-Object -ExpandProperty FullName)"
     ]
   }
 }

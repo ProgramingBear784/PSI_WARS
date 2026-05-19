@@ -14,11 +14,11 @@ public class CardView : MonoBehaviour, IPointerClickHandler
     public TextMeshProUGUI  nameText;
     public GameObject       selectedHighlight;
     public GameObject       disorientedOverlay;
+    public GameObject       depletedOverlay;
 
     public CardInstance CardInstance { get; private set; }
 
     private System.Action<CardView> _onClick;
-    private Material _grayscaleMat;
 
     public void Init(CardInstance instance, System.Action<CardView> onClick)
     {
@@ -45,20 +45,8 @@ public class CardView : MonoBehaviour, IPointerClickHandler
 
     public void SetDepleted(bool on)
     {
-        if (artworkImage == null) return;
-        if (on)
-        {
-            if (_grayscaleMat == null)
-            {
-                var shader = Shader.Find("UI/Grayscale");
-                _grayscaleMat = shader != null ? new Material(shader) : null;
-            }
-            artworkImage.material = _grayscaleMat;
-        }
-        else
-        {
-            artworkImage.material = null;
-        }
+        if (depletedOverlay != null) depletedOverlay.SetActive(on);
+        if (artworkImage    != null) artworkImage.color = on ? new Color(0.35f, 0.35f, 0.35f) : Color.white;
     }
 
     public void SetDisoriented(bool on)

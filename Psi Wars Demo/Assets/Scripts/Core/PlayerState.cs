@@ -127,7 +127,15 @@ public class PlayerState
 
     public void DestroyUnit(CardInstance unit)
     {
-        // Move unit and any attached equipment to discard
+        // If stacked, unstack and discard the partner too
+        if (unit.stackedWith != null)
+        {
+            var partner = unit.stackedWith;
+            unit.stackedWith = partner.stackedWith = null;
+            if (partner.equippedItem != null) discardPile.Add(partner.equippedItem);
+            discardPile.Add(partner);
+            lab.Remove(partner);
+        }
         if (unit.equippedItem != null) discardPile.Add(unit.equippedItem);
         discardPile.Add(unit);
         lab.Remove(unit);

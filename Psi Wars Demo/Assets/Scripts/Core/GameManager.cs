@@ -48,10 +48,7 @@ public class GameManager : MonoBehaviour
             for (int i = 0; i < 5; i++)
             { var c = Players[p].DrawFromBattleDeck(); if (c != null) Players[p].hand.Add(c); }
 
-        // Roll to determine first player
-        int r0, r1;
-        do { r0 = RollPhysical(); r1 = RollPhysical(); } while (r0 == r1);
-        CurrentPlayerIndex = r0 > r1 ? 0 : 1;
+        CurrentPlayerIndex = 0; // Player 1 always goes first
 
         IsFirstTurn = true;
         GameOver    = false;
@@ -88,15 +85,9 @@ public class GameManager : MonoBehaviour
 
     private void ExecDraw()
     {
-        // Draw one resource card → place creation unit directly in lab
+        // Draw one resource card → always goes to hand (player plays it during Creation phase)
         var res = CurrentPlayer.DrawFromResourceDeck();
-        if (res != null)
-        {
-            if (res.data.cardType == CardType.CreationUnit)
-                CurrentPlayer.creationUnits.Add(res);
-            else
-                CurrentPlayer.hand.Add(res); // Creation Oracle goes to hand
-        }
+        if (res != null) CurrentPlayer.hand.Add(res);
 
         // Draw one battle card — skip on the very first turn of the game
         if (!IsFirstTurn)
@@ -118,24 +109,75 @@ public class GameManager : MonoBehaviour
 
     // ── Creation phase actions ────────────────────────────────────────────────
 
-    /// <summary>Play a Battle Unit or Equipment card from hand to the Lab.</summary>
+    /// <summary>Play a card from hand. Creation Units are free; others pay creation unit costs.</summary>
     public bool TryPlayCard(CardInstance card)
     {
         if (CurrentPhase != TurnPhase.Creation) return false;
         if (!CurrentPlayer.hand.Contains(card))  return false;
-        if (!CurrentPlayer.CanAfford(card.data)) return false;
 
-        CurrentPlayer.PayCost(card.data);
+        bool isCU = card.data.cardType == CardType.CreationUnit;
+        if (!isCU)
+        {
+            if (!CurrentPlayer.CanAfford(card.data)) return false;
+            CurrentPlayer.PayCost(card.data);
+        }
+
         CurrentPlayer.hand.Remove(card);
 
-        if (card.data.cardType == CardType.BattleUnit || card.data.cardType == CardType.Equipment)
+        if (card.data.cardType == CardType.BattleUnit)
             CurrentPlayer.lab.Add(card);
-        // Power cards: effect handled by GameUI then discarded
+        else if (isCU)
+            CurrentPlayer.creationUnits.Add(card);
         else if (card.data.cardType == CardType.Power)
             CurrentPlayer.discardPile.Add(card);
+        // Equipment: must be equipped directly onto a unit via TryEquipFromHand
 
         onGameStateChanged.Invoke();
         return true;
+    }
+
+    /// <summary>Play an Equipment card from hand directly onto a lab unit (pays cost + attaches).</summary>
+    public bool TryEquipFromHand(CardInstance equipment, CardInstance target)
+    {
+        if (CurrentPhase != TurnPhase.Creation)                     return false;
+        if (!CurrentPlayer.hand.Contains(equipment))                return false;
+        if (equipment.data.cardType != CardType.Equipment)          return false;
+        if (!CurrentPlayer.lab.Contains(target))                    return false;
+        if (!CurrentPlayer.CanAfford(equipment.data))               return false;
+        if (!EquipmentCompatible(equipment, target))                return false;
+        if (target.equippedItem != null)                            return false;
+
+        CurrentPlayer.PayCost(equipment.data);
+        CurrentPlayer.hand.Remove(equipment);
+        target.equippedItem = equipment;
+        onGameStateChanged.Invoke();
+        return true;
+    }
+
+    /// <summary>Stack a Cyborg with a non-Cyborg unit already in the lab.</summary>
+    public bool TryStackUnits(CardInstance a, CardInstance b)
+    {
+        if (CurrentPhase != TurnPhase.Creation && CurrentPhase != TurnPhase.Battle) return false;
+        var cyborg    = a.data.unitType == UnitType.Cyborg ? a : b.data.unitType == UnitType.Cyborg ? b : null;
+        var nonCyborg = a.data.unitType != UnitType.Cyborg ? a : b.data.unitType != UnitType.Cyborg ? b : null;
+        if (cyborg == null || nonCyborg == null || cyborg == nonCyborg) return false;
+        if (cyborg.data.unitType != UnitType.Cyborg || nonCyborg.data.unitType == UnitType.Cyborg) return false;
+        if (cyborg.stackedWith != null || nonCyborg.stackedWith != null) return false;
+        if (!CurrentPlayer.lab.Contains(cyborg) || !CurrentPlayer.lab.Contains(nonCyborg)) return false;
+
+        cyborg.stackedWith    = nonCyborg;
+        nonCyborg.stackedWith = cyborg;
+        onGameStateChanged.Invoke();
+        return true;
+    }
+
+    /// <summary>Break a Cyborg+non-Cyborg stack — both units return to independent lab slots.</summary>
+    public void UnstackUnit(CardInstance unit)
+    {
+        if (unit.stackedWith == null) return;
+        unit.stackedWith.stackedWith = null;
+        unit.stackedWith = null;
+        onGameStateChanged.Invoke();
     }
 
     /// <summary>Attach an Equipment card from the lab to a Battle Unit.</summary>

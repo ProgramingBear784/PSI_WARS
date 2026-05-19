@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
@@ -26,11 +27,14 @@ public class PsiWarsGame : MonoBehaviour
 
     // HUD sidebar
     private TextMeshProUGUI _p0HP, _p1HP, _phaseLabel, _turnLabel, _statusLabel, _deckLabel;
-    private Button          _btnNext, _btnAct;
-    private TextMeshProUGUI _btnNextLbl, _btnActLbl;
+    private Button          _btnNext, _btnAct, _btnViewHand;
+    private TextMeshProUGUI _btnNextLbl, _btnActLbl, _btnViewHandLbl;
 
-    // Card zones (Content transforms inside ScrollViews)
+    // Card zones — Content transforms (for spawning cards into)
     private Transform _zoneOpCU, _zoneOpLab, _zoneMyLab, _zoneMyCU, _zoneHand;
+    // Zone container RectTransforms (for phase-adaptive sizing)
+    private RectTransform _zoneOpCUCon, _zoneOpLabCon, _zoneMyLabCon, _zoneMyCUCon, _zoneHandCon, _dividerRT;
+    private bool _handExpanded;
 
     // Overlays
     private TextMeshProUGUI _msgLabel, _logLabel, _winLabel;
@@ -159,73 +163,97 @@ public class PsiWarsGame : MonoBehaviour
         _gamePanel = new GameObject("GamePanel");
         _gamePanel.transform.SetParent(_board, false);
         Stretch(_gamePanel.AddComponent<RectTransform>());
-        _gamePanel.SetActive(false);
 
-        // ─ Sidebar (right 13%) ────────────────────────────────────────────────
-        var sidebar = MakePanel("Sidebar", _gamePanel.transform, new Color(0.07f, 0.07f, 0.12f));
+        // ─ Sidebar (right 22%) ────────────────────────────────────────────────
+        var sidebar = MakePanel("Sidebar", _gamePanel.transform, new Color(0.06f, 0.06f, 0.11f));
         var sideRT = sidebar.GetComponent<RectTransform>();
-        sideRT.anchorMin = new Vector2(0.87f, 0f); sideRT.anchorMax = Vector2.one;
+        sideRT.anchorMin = new Vector2(0.78f, 0f); sideRT.anchorMax = Vector2.one;
         sideRT.offsetMin = sideRT.offsetMax = Vector2.zero;
         var vlg = sidebar.AddComponent<VerticalLayoutGroup>();
-        vlg.padding = new RectOffset(10, 10, 14, 14);
-        vlg.spacing = 8;
+        vlg.padding = new RectOffset(14, 14, 16, 16);
+        vlg.spacing = 6;
         vlg.childControlWidth = vlg.childControlHeight = true;
         vlg.childForceExpandWidth = true; vlg.childForceExpandHeight = false;
 
-        _p0HP = AddSideText(sidebar, "P1: -- HP", 17);
-        _p1HP = AddSideText(sidebar, "P2: -- HP", 17);
-
-        _phaseLabel = AddSideText(sidebar, "Phase", 20, FontStyles.Bold);
+        // Phase — large and coloured
+        _phaseLabel = AddSideText(sidebar, "Phase", 24, FontStyles.Bold);
         _phaseLabel.color = new Color(1f, 0.85f, 0.1f);
         _phaseLabel.alignment = TextAlignmentOptions.Center;
-        _phaseLabel.GetComponent<LayoutElement>().preferredHeight = 56;
+        _phaseLabel.GetComponent<LayoutElement>().preferredHeight = 60;
 
-        _turnLabel = AddSideText(sidebar, "Turn", 15);
+        // Turn
+        _turnLabel = AddSideText(sidebar, "Turn", 14);
         _turnLabel.color = new Color(0.6f, 0.9f, 1f);
         _turnLabel.alignment = TextAlignmentOptions.Center;
 
-        AddSpacer(sidebar, 10);
+        AddSpacer(sidebar, 6);
 
-        _statusLabel = AddSideText(sidebar, "", 13);
-        _statusLabel.enableWordWrapping = true;
-        _statusLabel.GetComponent<LayoutElement>().preferredHeight = 130;
-
-        AddSpacer(sidebar, 8);
-
-        _btnAct = MakeBtn("Action", sidebar.transform, null, new Color(0.18f, 0.45f, 0.75f));
-        _btnAct.GetComponent<LayoutElement>().preferredHeight = 62;
-        _btnActLbl = _btnAct.GetComponentInChildren<TextMeshProUGUI>();
-
-        _btnNext = MakeBtn("Next →", sidebar.transform, null, new Color(0.12f, 0.12f, 0.18f));
-        _btnNext.GetComponent<LayoutElement>().preferredHeight = 62;
-        _btnNextLbl = _btnNext.GetComponentInChildren<TextMeshProUGUI>();
+        // HP — each player on their own row
+        _p0HP = AddSideText(sidebar, "P1  --/-- HP", 14);
+        _p0HP.color = new Color(0.4f, 1f, 0.5f);
+        _p1HP = AddSideText(sidebar, "P2  --/-- HP", 14);
+        _p1HP.color = new Color(1f, 0.5f, 0.5f);
 
         AddSpacer(sidebar, 6);
 
+        // Status instructions
+        _statusLabel = AddSideText(sidebar, "", 12);
+        _statusLabel.enableWordWrapping = true;
+        _statusLabel.color = new Color(0.82f, 0.82f, 0.82f);
+        _statusLabel.GetComponent<LayoutElement>().preferredHeight = 120;
+
+        AddSpacer(sidebar, 10);
+
+        // Action button (Play Card / Declare Attackers / etc.)
+        _btnAct = MakeBtn("Action", sidebar.transform, null, new Color(0.18f, 0.45f, 0.75f));
+        _btnAct.GetComponent<LayoutElement>().preferredHeight = 60;
+        _btnActLbl = _btnAct.transform.GetChild(0).GetComponent<TextMeshProUGUI>();
+
+        // Next phase button (Go to Battle / Skip Battle)
+        _btnNext = MakeBtn("Next", sidebar.transform, null, new Color(0.15f, 0.15f, 0.22f));
+        _btnNext.GetComponent<LayoutElement>().preferredHeight = 60;
+        _btnNextLbl = _btnNext.transform.GetChild(0).GetComponent<TextMeshProUGUI>();
+
+        // View Hand toggle — only shown during Battle phase
+        _btnViewHand = MakeBtn("▲ View Hand", sidebar.transform, ToggleHandView,
+                               new Color(0.28f, 0.20f, 0.08f));
+        _btnViewHand.GetComponent<LayoutElement>().preferredHeight = 48;
+        _btnViewHandLbl = _btnViewHand.transform.GetChild(0).GetComponent<TextMeshProUGUI>();
+        _btnViewHand.gameObject.SetActive(false);
+
+        AddSpacer(sidebar, 8);
+
         _deckLabel = AddSideText(sidebar, "", 12);
         _deckLabel.enableWordWrapping = true;
-        _deckLabel.GetComponent<LayoutElement>().preferredHeight = 80;
-        _deckLabel.color = new Color(0.55f, 0.55f, 0.65f);
+        _deckLabel.GetComponent<LayoutElement>().preferredHeight = 72;
+        _deckLabel.color = new Color(0.50f, 0.50f, 0.62f);
 
-        // ─ Main area (left 87%) ───────────────────────────────────────────────
+        // ─ Main area (left 78%) ───────────────────────────────────────────────
         var main = new GameObject("Main");
         main.transform.SetParent(_gamePanel.transform, false);
         var mainRT = main.AddComponent<RectTransform>();
-        mainRT.anchorMin = Vector2.zero; mainRT.anchorMax = new Vector2(0.87f, 1f);
+        mainRT.anchorMin = Vector2.zero; mainRT.anchorMax = new Vector2(0.78f, 1f);
         mainRT.offsetMin = mainRT.offsetMax = Vector2.zero;
 
-        // Zone layout (bottom → top): hand 27%, my-CU 8%, my-lab 23%, divider 2%, op-lab 23%, op-CU 8%, top-bar 9%
-        _zoneOpCU  = MakeZone("Opp.Creation",  main.transform, 0.91f, 1.00f, "Opponent Creation Units",  new Color(0.06f, 0.06f, 0.10f));
-        _zoneOpLab = MakeZone("Opp.Lab",        main.transform, 0.60f, 0.91f, "Opponent Lab",             new Color(0.05f, 0.08f, 0.14f));
+        // Zones — no fixed anchors; ApplyPhaseLayout() positions them at runtime
+        _zoneOpCUCon  = MakeZoneContainer("Opp.CU",  main.transform, "Opponent Creation Units",
+                                           new Color(0.06f, 0.05f, 0.10f), out _zoneOpCU);
+        _zoneOpLabCon = MakeZoneContainer("Opp.Lab", main.transform, "Opponent Lab",
+                                           new Color(0.04f, 0.07f, 0.15f), out _zoneOpLab);
 
-        var div = MakePanel("Divider", main.transform, new Color(0.35f, 0.35f, 0.40f));
-        var divRT = div.GetComponent<RectTransform>();
-        divRT.anchorMin = new Vector2(0, 0.585f); divRT.anchorMax = new Vector2(1, 0.600f);
-        divRT.offsetMin = divRT.offsetMax = Vector2.zero;
+        var divGO = MakePanel("Divider", main.transform, new Color(0.38f, 0.38f, 0.44f));
+        _dividerRT = divGO.GetComponent<RectTransform>();
 
-        _zoneMyLab = MakeZone("My.Lab",         main.transform, 0.35f, 0.585f,"Your Lab",                 new Color(0.05f, 0.10f, 0.06f));
-        _zoneMyCU  = MakeZone("My.Creation",    main.transform, 0.27f, 0.35f, "Your Creation Units",      new Color(0.06f, 0.06f, 0.10f));
-        _zoneHand  = MakeZone("Hand",            main.transform, 0.00f, 0.27f, "Your Hand",               new Color(0.09f, 0.07f, 0.05f));
+        _zoneMyLabCon = MakeZoneContainer("My.Lab",  main.transform, "Your Lab",
+                                           new Color(0.04f, 0.11f, 0.05f), out _zoneMyLab);
+        _zoneMyCUCon  = MakeZoneContainer("My.CU",   main.transform, "Your Creation Units",
+                                           new Color(0.07f, 0.06f, 0.12f), out _zoneMyCU);
+        _zoneHandCon  = MakeZoneContainer("Hand",    main.transform, "Your Hand",
+                                           new Color(0.10f, 0.08f, 0.05f), out _zoneHand);
+
+        ApplyPhaseLayout(TurnPhase.Creation); // default layout until game starts
+
+        _gamePanel.SetActive(false);
     }
 
     // ── Message / Log / Win overlays ──────────────────────────────────────────
@@ -315,7 +343,9 @@ public class PsiWarsGame : MonoBehaviour
         _bSub = BattleSub.None;
         _attackers.Clear(); _defenders.Clear();
         _pendingDef = null; _selHandCard = null; _selLabCard = null;
+        _handExpanded = false;
         RefreshUI();
+        StartCoroutine(AutoAdvanceIfReady());
     }
 
     private void OnTurnChanged()
@@ -323,9 +353,25 @@ public class PsiWarsGame : MonoBehaviour
         ShowMsg($"Pass the device to\n{GameManager.Instance.CurrentPlayer.playerName}!", () =>
         {
             _flipper.onFlipComplete.RemoveAllListeners();
-            _flipper.onFlipComplete.AddListener(RefreshUI);
+            _flipper.onFlipComplete.AddListener(() =>
+            {
+                RefreshUI();
+                StartCoroutine(AutoAdvanceIfReady());
+            });
             _flipper.Flip();
         });
+    }
+
+    private IEnumerator AutoAdvanceIfReady()
+    {
+        yield return new WaitForSeconds(0.4f);
+        var gm = GameManager.Instance;
+        if (gm == null || gm.Players == null) yield break;
+        if (_msgPanel  != null && _msgPanel.activeSelf)  yield break;
+        if (_winPanel  != null && _winPanel.activeSelf)  yield break;
+        var phase = gm.CurrentPhase;
+        if (phase == TurnPhase.Replenish || phase == TurnPhase.Draw || phase == TurnPhase.Cleanup)
+            gm.AdvancePhase();
     }
 
     private void OnGameOver()
@@ -355,6 +401,7 @@ public class PsiWarsGame : MonoBehaviour
         UpdateHUD();
         RebuildZones();
         UpdateButtons();
+        ApplyPhaseLayout(GameManager.Instance.CurrentPhase);
     }
 
     private void UpdateHUD()
@@ -384,17 +431,17 @@ public class PsiWarsGame : MonoBehaviour
         var gm = GameManager.Instance;
         return gm.CurrentPhase switch
         {
-            TurnPhase.Replenish => "All units replenished.",
-            TurnPhase.Draw      => "Cards drawn — review hand, then Continue.",
-            TurnPhase.Creation  => "Tap a hand card to select.\nTap Play Card to deploy it.\nTap a lab unit with equip selected\nto attach equipment.",
+            TurnPhase.Replenish => "Replenishing...",
+            TurnPhase.Draw      => "Drawing cards...",
+            TurnPhase.Creation  => "Play Card: CU (free) or Battle Unit.\nEquip: select equip in hand → tap lab unit.\nStack: tap a Cyborg in lab → tap a non-Cyborg.",
             TurnPhase.Battle    => _bSub switch
             {
                 BattleSub.None        => "Tap Declare Attackers\nor Skip Battle.",
                 BattleSub.DeclareAtk  => "Tap your lab units to\nmark attackers.\nThen Confirm Attackers.",
-                BattleSub.DeclareDefend => "Tap one of your units,\nthen tap an attacker\nto assign as blocker.",
+                BattleSub.DeclareDefend => "Tap YOUR unit (bottom)\nto select a blocker,\nthen tap the attacker (top)\nto assign it.",
                 _                     => ""
             },
-            TurnPhase.Cleanup => "Battle complete. End your turn.",
+            TurnPhase.Cleanup => "Cleaning up...",
             _                 => ""
         };
     }
@@ -403,120 +450,225 @@ public class PsiWarsGame : MonoBehaviour
 
     private void RebuildZones()
     {
-        foreach (var v in _views) if (v) Destroy(v.gameObject);
+        ClearZone(_zoneOpCU); ClearZone(_zoneOpLab);
+        ClearZone(_zoneMyLab); ClearZone(_zoneMyCU); ClearZone(_zoneHand);
         _views.Clear();
 
         var gm = GameManager.Instance;
         var cp = gm.CurrentPlayer;
         var op = gm.OpponentPlayer;
 
-        foreach (var ci in op.creationUnits) SpawnCard(ci, _zoneOpCU,  null);
-        foreach (var ci in op.lab)           SpawnCard(ci, _zoneOpLab, OnOpponentLabClick);
-        foreach (var ci in cp.lab)           SpawnCard(ci, _zoneMyLab, OnMyLabClick);
-        foreach (var ci in cp.creationUnits) SpawnCard(ci, _zoneMyCU,  null);
-        foreach (var ci in cp.hand)          SpawnCard(ci, _zoneHand,  OnHandClick);
+        bool defending = _bSub == BattleSub.DeclareDefend;
+        var bottom = defending ? op : cp;
+        var top    = defending ? cp : op;
+
+        // Opponent CU zone — group same-type CUs
+        foreach (var grp in GroupByType(top.creationUnits).Values)    SpawnCUStack(grp, _zoneOpCU);
+
+        // Opponent Lab — render stacks as a single combined card
+        foreach (var ci in top.lab)
+        {
+            if (ci.stackedWith != null && ci.data.unitType != UnitType.Cyborg) continue; // rendered with Cyborg
+            System.Action<CardView> h = defending ? OnAttackerLabClick : OnOpponentLabClick;
+            if (ci.stackedWith != null) SpawnStackedUnit(ci, ci.stackedWith, _zoneOpLab, h);
+            else                        SpawnCard(ci, _zoneOpLab, h);
+        }
+
+        // My Lab
+        foreach (var ci in bottom.lab)
+        {
+            if (ci.stackedWith != null && ci.data.unitType != UnitType.Cyborg) continue;
+            System.Action<CardView> h = defending ? OnDefenderLabClick : OnMyLabClick;
+            if (ci.stackedWith != null) SpawnStackedUnit(ci, ci.stackedWith, _zoneMyLab, h);
+            else                        SpawnCard(ci, _zoneMyLab, h);
+        }
+
+        // My CU zone — group same-type CUs
+        foreach (var grp in GroupByType(bottom.creationUnits).Values) SpawnCUStack(grp, _zoneMyCU);
+
+        // Hand — dim cards the player can't afford during Creation phase
+        System.Action<CardView> handH = defending ? null : OnHandClick;
+        bool creationPhase = gm.CurrentPhase == TurnPhase.Creation;
+        foreach (var ci in bottom.hand)
+        {
+            bool affordable = ci.data.cardType == CardType.CreationUnit ||
+                              bottom.CanAfford(ci.data);
+            SpawnCard(ci, _zoneHand, handH, creationPhase && !affordable);
+        }
 
         // Re-apply battle highlights
         if (gm.CurrentPhase == TurnPhase.Battle)
             foreach (var v in _views)
             {
                 if (_attackers.Contains(v.CardInstance))      v.SetSelected(true);
+                if (_defenders.ContainsKey(v.CardInstance))   v.SetSelected(true);
                 if (_defenders.ContainsValue(v.CardInstance)) v.SetSelected(true);
             }
     }
 
-    private void SpawnCard(CardInstance ci, Transform parent, System.Action<CardView> onClick)
+    private void ClearZone(Transform zone)
+    {
+        if (zone == null) return;
+        for (int i = zone.childCount - 1; i >= 0; i--)
+            Destroy(zone.GetChild(i).gameObject);
+    }
+
+    private static Dictionary<CreationUnitType, List<CardInstance>> GroupByType(List<CardInstance> cus)
+    {
+        var d = new Dictionary<CreationUnitType, List<CardInstance>>();
+        foreach (var ci in cus)
+        {
+            if (!d.ContainsKey(ci.data.creationUnitType)) d[ci.data.creationUnitType] = new List<CardInstance>();
+            d[ci.data.creationUnitType].Add(ci);
+        }
+        return d;
+    }
+
+    private void SpawnCard(CardInstance ci, Transform parent, System.Action<CardView> onClick, bool dimmed = false)
     {
         var go = new GameObject(ci.data.cardName);
         go.transform.SetParent(parent, false);
+        go.AddComponent<RectTransform>();
 
-        // Root panel — colored by unit type
         var bg = go.AddComponent<Image>();
         bg.color = CardColor(ci.data);
+
         var le = go.AddComponent<LayoutElement>();
-        le.preferredWidth = 110; le.preferredHeight = 155;
-        le.minWidth = 110;       le.minHeight = 155;
+        le.preferredWidth = 130; le.preferredHeight = 170;
+        le.minWidth = 110;       le.minHeight = 140;
 
-        // Artwork (top 60%)
-        var artGO  = Sub("Art", go.transform);
-        var artRT  = artGO.AddComponent<RectTransform>();
-        artRT.anchorMin = new Vector2(0.02f, 0.36f); artRT.anchorMax = new Vector2(0.98f, 0.98f);
-        artRT.offsetMin = artRT.offsetMax = Vector2.zero;
-        var artImg = artGO.AddComponent<Image>();
-        artImg.preserveAspect = true;
-        if (ci.data.artwork != null) artImg.sprite = ci.data.artwork;
-        else artImg.color = new Color(0, 0, 0, 0.25f);
+        bool isCU    = ci.data.cardType == CardType.CreationUnit;
+        string stats = isCU ? "" : StatsStr(ci);
+        string cost  = isCU ? "" : CostStr(ci.data);
+        bool hasStat   = !string.IsNullOrEmpty(stats);
+        bool hasCost   = !string.IsNullOrEmpty(cost);
+        bool hasBottom = hasCost || ci.equippedItem != null;
 
-        // Name bar
-        var nameRT = SubText("Name", go.transform, ci.data.cardName, 10, FontStyles.Bold);
-        nameRT.anchorMin = new Vector2(0, 0.22f); nameRT.anchorMax = new Vector2(1, 0.37f);
-        nameRT.offsetMin = new Vector2(2, 0); nameRT.offsetMax = new Vector2(-2, 0);
-        nameRT.GetComponent<TextMeshProUGUI>().alignment = TextAlignmentOptions.Center;
-        nameRT.GetComponent<TextMeshProUGUI>().enableWordWrapping = true;
+        // ── Type band (top 20%, always visible when zone is thin) ─────────────
+        var bandGO = new GameObject("Band"); bandGO.transform.SetParent(go.transform, false);
+        var bandRT = bandGO.AddComponent<RectTransform>();
+        bandRT.anchorMin = new Vector2(0, 0.80f); bandRT.anchorMax = Vector2.one;
+        bandRT.offsetMin = bandRT.offsetMax = Vector2.zero;
+        bandGO.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.50f);
 
-        // Stats line
-        string stats = StatsStr(ci);
-        if (!string.IsNullOrEmpty(stats))
+        var typeGO = new GameObject("Type"); typeGO.transform.SetParent(bandGO.transform, false);
+        var typeRT = typeGO.AddComponent<RectTransform>();
+        typeRT.anchorMin = Vector2.zero; typeRT.anchorMax = Vector2.one;
+        typeRT.offsetMin = new Vector2(3, 1); typeRT.offsetMax = new Vector2(-3, -1);
+        var typeTMP = typeGO.AddComponent<TextMeshProUGUI>();
+        typeTMP.text = TypeStr(ci.data); typeTMP.fontSize = 10; typeTMP.fontStyle = FontStyles.Bold;
+        typeTMP.color = new Color(1f, 0.88f, 0.4f);
+        typeTMP.alignment = TextAlignmentOptions.Center;
+        typeTMP.enableWordWrapping = true;
+
+        // ── Card name (largest text, adapts to available space) ───────────────
+        float nameYMin = isCU ? 0.03f : (hasStat ? 0.45f : (hasBottom ? 0.22f : 0.03f));
+        var nameGO = new GameObject("Name"); nameGO.transform.SetParent(go.transform, false);
+        var nameRT = nameGO.AddComponent<RectTransform>();
+        nameRT.anchorMin = new Vector2(0, nameYMin); nameRT.anchorMax = new Vector2(1, 0.80f);
+        nameRT.offsetMin = new Vector2(4, 2); nameRT.offsetMax = new Vector2(-4, -2);
+        var nameTMP = nameGO.AddComponent<TextMeshProUGUI>();
+        nameTMP.text = ci.data.cardName; nameTMP.fontSize = 16; nameTMP.fontStyle = FontStyles.Bold;
+        nameTMP.color = Color.white;
+        nameTMP.alignment = TextAlignmentOptions.Center;
+        nameTMP.enableWordWrapping = true;
+
+        // ── Stats row (battle units + equipment) ──────────────────────────────
+        if (hasStat)
         {
-            var sRT = SubText("Stats", go.transform, stats, 9);
-            sRT.anchorMin = new Vector2(0, 0.10f); sRT.anchorMax = new Vector2(1, 0.23f);
-            sRT.offsetMin = new Vector2(2, 0); sRT.offsetMax = new Vector2(-2, 0);
-            sRT.GetComponent<TextMeshProUGUI>().alignment = TextAlignmentOptions.Center;
-            sRT.GetComponent<TextMeshProUGUI>().color = new Color(1f, 0.9f, 0.3f);
+            float statYMin = hasBottom ? 0.22f : 0.03f;
+            var sGO = new GameObject("Stats"); sGO.transform.SetParent(go.transform, false);
+            var sRT = sGO.AddComponent<RectTransform>();
+            sRT.anchorMin = new Vector2(0, statYMin); sRT.anchorMax = new Vector2(1, 0.45f);
+            sRT.offsetMin = new Vector2(4, 0); sRT.offsetMax = new Vector2(-4, 0);
+            var sTMP = sGO.AddComponent<TextMeshProUGUI>();
+            sTMP.text = stats; sTMP.fontSize = 13;
+            sTMP.color = new Color(1f, 0.90f, 0.25f);
+            sTMP.alignment = TextAlignmentOptions.Center;
+            sTMP.enableWordWrapping = true;
         }
 
-        // Cost (top-left)
-        string cost = CostStr(ci.data);
-        if (!string.IsNullOrEmpty(cost))
+        // ── Cost row (skipped when item is equipped — equipment label takes this slot) ───
+        if (hasCost && ci.equippedItem == null)
         {
-            var cRT = SubText("Cost", go.transform, cost, 8);
-            cRT.anchorMin = new Vector2(0, 0.88f); cRT.anchorMax = new Vector2(1, 1f);
-            cRT.offsetMin = new Vector2(3, 0); cRT.offsetMax = new Vector2(-2, 0);
-            cRT.GetComponent<TextMeshProUGUI>().alignment = TextAlignmentOptions.TopLeft;
+            var cGO = new GameObject("Cost"); cGO.transform.SetParent(go.transform, false);
+            var cRT = cGO.AddComponent<RectTransform>();
+            cRT.anchorMin = new Vector2(0, 0.03f); cRT.anchorMax = new Vector2(1, 0.22f);
+            cRT.offsetMin = new Vector2(4, 0); cRT.offsetMax = new Vector2(-4, 0);
+            var cTMP = cGO.AddComponent<TextMeshProUGUI>();
+            cTMP.text = cost; cTMP.fontSize = 11;
+            cTMP.color = new Color(0.5f, 0.92f, 1f);
+            cTMP.alignment = TextAlignmentOptions.Center;
+            cTMP.enableWordWrapping = true;
         }
 
-        // Type strip (bottom)
-        var tRT = SubText("Type", go.transform, TypeStr(ci.data), 8);
-        tRT.anchorMin = Vector2.zero; tRT.anchorMax = new Vector2(1, 0.11f);
-        tRT.GetComponent<TextMeshProUGUI>().alignment = TextAlignmentOptions.Center;
-        tRT.GetComponent<TextMeshProUGUI>().color = new Color(0.75f, 0.75f, 0.75f);
-
-        // Equipment label
+        // ── Equipped item (replaces cost slot, shows bonus explicitly) ───────────
         if (ci.equippedItem != null)
         {
-            var eqRT = SubText("EQ", go.transform, $"[{ci.equippedItem.data.cardName}]", 7);
-            eqRT.anchorMin = new Vector2(0, 0f); eqRT.anchorMax = new Vector2(1, 0.12f);
-            eqRT.GetComponent<TextMeshProUGUI>().alignment = TextAlignmentOptions.Center;
-            eqRT.GetComponent<TextMeshProUGUI>().color = new Color(0.9f, 0.5f, 1f);
+            var eq = ci.equippedItem.data;
+            var bonusParts = new System.Collections.Generic.List<string>();
+            if (eq.equipCyberBonus    > 0) bonusParts.Add($"+{eq.equipCyberBonus} Cy");
+            if (eq.equipPsionicBonus  > 0) bonusParts.Add($"+{eq.equipPsionicBonus} Ps");
+            if (eq.equipPhysicalBonus > 0) bonusParts.Add($"+{eq.equipPhysicalBonus} Ph");
+            string bonus = bonusParts.Count > 0 ? string.Join(" ", bonusParts) : "";
+
+            var eGO = new GameObject("EQ"); eGO.transform.SetParent(go.transform, false);
+            var eRT = eGO.AddComponent<RectTransform>();
+            eRT.anchorMin = new Vector2(0, 0.03f); eRT.anchorMax = new Vector2(1, 0.22f);
+            eRT.offsetMin = new Vector2(3, 2); eRT.offsetMax = new Vector2(-3, 0);
+            var eTMP = eGO.AddComponent<TextMeshProUGUI>();
+            eTMP.text = bonus.Length > 0 ? $"{eq.cardName}\n{bonus}" : eq.cardName;
+            eTMP.fontSize = 9;
+            eTMP.color = new Color(0.9f, 0.5f, 1f);
+            eTMP.alignment = TextAlignmentOptions.Center;
+            eTMP.enableWordWrapping = true;
         }
 
-        // Selected highlight (yellow border)
-        var selGO  = Sub("Sel", go.transform);
+        // ── Selection highlight ───────────────────────────────────────────────
+        var selGO = new GameObject("Sel"); selGO.transform.SetParent(go.transform, false);
+        selGO.transform.SetAsFirstSibling();
+        var selRT = selGO.AddComponent<RectTransform>();
+        selRT.anchorMin = Vector2.zero; selRT.anchorMax = Vector2.one;
+        selRT.offsetMin = new Vector2(-4, -4); selRT.offsetMax = new Vector2(4, 4);
         var selImg = selGO.AddComponent<Image>();
-        selImg.color = new Color(1f, 1f, 0f, 0.75f);
-        var selRT2 = selGO.GetComponent<RectTransform>();
-        selRT2.anchorMin = Vector2.zero; selRT2.anchorMax = Vector2.one;
-        selRT2.offsetMin = new Vector2(-4,-4); selRT2.offsetMax = new Vector2(4,4);
-        selImg.raycastTarget = false;
+        selImg.color = new Color(1f, 1f, 0f, 0.80f); selImg.raycastTarget = false;
         selGO.SetActive(false);
-        selGO.transform.SetAsFirstSibling(); // Draw behind card content
 
-        // Disoriented overlay (red tint)
-        var dioGO  = Sub("Diso", go.transform);
+        // ── Disoriented overlay ───────────────────────────────────────────────
+        var dioGO = new GameObject("Diso"); dioGO.transform.SetParent(go.transform, false);
+        var dioRT = dioGO.AddComponent<RectTransform>();
+        dioRT.anchorMin = Vector2.zero; dioRT.anchorMax = Vector2.one;
+        dioRT.offsetMin = dioRT.offsetMax = Vector2.zero;
         var dioImg = dioGO.AddComponent<Image>();
-        dioImg.color = new Color(1f, 0.1f, 0.1f, 0.38f);
-        var dioRT2 = dioGO.GetComponent<RectTransform>();
-        dioRT2.anchorMin = Vector2.zero; dioRT2.anchorMax = Vector2.one;
-        dioRT2.offsetMin = dioRT2.offsetMax = Vector2.zero;
-        dioImg.raycastTarget = false;
+        dioImg.color = new Color(1f, 0.1f, 0.1f, 0.40f); dioImg.raycastTarget = false;
         dioGO.SetActive(ci.isDisoriented);
 
-        // CardView
+        // ── Depleted overlay ──────────────────────────────────────────────────
+        var depGO = new GameObject("Dep"); depGO.transform.SetParent(go.transform, false);
+        var depRT = depGO.AddComponent<RectTransform>();
+        depRT.anchorMin = Vector2.zero; depRT.anchorMax = Vector2.one;
+        depRT.offsetMin = depRT.offsetMax = Vector2.zero;
+        var depImg = depGO.AddComponent<Image>();
+        depImg.color = new Color(0.05f, 0.05f, 0.05f, 0.68f); depImg.raycastTarget = false;
+        depGO.SetActive(ci.isDepleted);
+
+        // Unaffordable overlay — covers card with semi-transparent gray + X mark
+        if (dimmed)
+        {
+            var dimGO = new GameObject("Dim"); dimGO.transform.SetParent(go.transform, false);
+            var dimRT = dimGO.AddComponent<RectTransform>();
+            dimRT.anchorMin = Vector2.zero; dimRT.anchorMax = Vector2.one;
+            dimRT.offsetMin = dimRT.offsetMax = Vector2.zero;
+            var dimImg = dimGO.AddComponent<Image>();
+            dimImg.color = new Color(0f, 0f, 0f, 0.60f); dimImg.raycastTarget = false;
+        }
+
         var cv = go.AddComponent<CardView>();
-        cv.artworkImage      = artImg;
-        cv.selectedHighlight = selGO;
+        cv.artworkImage       = null;  // bg color is fixed; depletion handled by depGO overlay
+        cv.selectedHighlight  = selGO;
         cv.disorientedOverlay = dioGO;
-        cv.Init(ci, onClick ?? (_ => { }));
+        cv.depletedOverlay    = depGO;
+        cv.Init(ci, dimmed ? (_ => { }) : (onClick ?? (_ => { })));
         _views.Add(cv);
     }
 
@@ -525,6 +677,8 @@ public class PsiWarsGame : MonoBehaviour
     private void OnHandClick(CardView cv)
     {
         if (GameManager.Instance.CurrentPhase != TurnPhase.Creation) return;
+        // Clicking hand deselects any lab selection
+        _selLabCard?.SetSelected(false); _selLabCard = null;
         if (_selHandCard != null) _selHandCard.SetSelected(false);
         _selHandCard = (cv == _selHandCard) ? null : cv;
         _selHandCard?.SetSelected(true);
@@ -538,47 +692,136 @@ public class PsiWarsGame : MonoBehaviour
 
         if (gm.CurrentPhase == TurnPhase.Creation)
         {
+            // Equipment in hand: tap a lab unit to equip it directly
             if (_selHandCard != null && _selHandCard.CardInstance.data.cardType == CardType.Equipment)
             {
-                bool ok = gm.TryAttachEquipment(_selHandCard.CardInstance, ci);
-                _statusLabel.text = ok ? $"Equipped {_selHandCard.CardInstance.data.cardName}!" : "Cannot attach there.";
-                _selHandCard?.SetSelected(false);
-                _selHandCard = null;
-                RebuildZones(); UpdateButtons();
+                bool ok = gm.TryEquipFromHand(_selHandCard.CardInstance, ci);
+                _statusLabel.text = ok ? $"Equipped {_selHandCard.CardInstance.data.cardName} on {ci.data.cardName}!"
+                                       : "Can't equip there — check compatibility and cost.";
+                _selHandCard?.SetSelected(false); _selHandCard = null;
+                if (ok) RebuildZones();
+                UpdateButtons();
+                return;
+            }
+
+            // Battle unit in lab: selection / stacking logic (only when no hand card active)
+            if (ci.data.cardType == CardType.BattleUnit && _selHandCard == null)
+            {
+                // A Cyborg is already selected — try to stack with this unit
+                if (_selLabCard != null && _selLabCard.CardInstance != ci &&
+                    _selLabCard.CardInstance.stackedWith == null)
+                {
+                    bool ok = gm.TryStackUnits(_selLabCard.CardInstance, ci);
+                    _selLabCard.SetSelected(false); _selLabCard = null;
+                    if (ok) RebuildZones();
+                    else    _statusLabel.text = "Stack requires a Cyborg and a non-Cyborg.";
+                    UpdateButtons();
+                    return;
+                }
+
+                // Toggle selection (Cyborg → enters stack-mode; stacked → shows unstack; others → deselect)
+                bool wasSelected = _selLabCard?.CardInstance == ci;
+                _selLabCard?.SetSelected(false); _selLabCard = null;
+                if (!wasSelected)
+                {
+                    _selLabCard = cv; cv.SetSelected(true);
+                    if (ci.stackedWith != null)
+                        _statusLabel.text = $"{ci.data.cardName} stack selected.\nPress Unstack to separate.";
+                    else if (ci.data.unitType == UnitType.Cyborg)
+                        _statusLabel.text = "Cyborg selected.\nTap a Creature or Robot in lab to stack.";
+                    else
+                        _statusLabel.text = $"{ci.data.cardName} selected.";
+                }
+                UpdateButtons();
                 return;
             }
         }
 
-        if (gm.CurrentPhase == TurnPhase.Battle)
+        if (gm.CurrentPhase == TurnPhase.Battle &&
+            _bSub == BattleSub.DeclareAtk &&
+            ci.data.cardType == CardType.BattleUnit)
         {
-            if (_bSub == BattleSub.DeclareAtk && ci.data.cardType == CardType.BattleUnit)
+            // Cyborg in stack-mode: try to pair with this unit
+            if (_selLabCard != null && _selLabCard.CardInstance != ci)
             {
-                if (_attackers.Contains(ci)) { _attackers.Remove(ci); cv.SetSelected(false); }
-                else                         { _attackers.Add(ci);   cv.SetSelected(true); }
-                UpdateButtons();
+                bool ok = gm.TryStackUnits(_selLabCard.CardInstance, ci);
+                _selLabCard.SetSelected(false); _selLabCard = null;
+                if (ok) { _statusLabel.text = "Units stacked!"; RebuildZones(); }
+                else      _statusLabel.text = "Stack requires a Cyborg + non-Cyborg.";
+                UpdateButtons(); return;
             }
-            else if (_bSub == BattleSub.DeclareDefend)
+            // Tap same card while selected → cancel stack mode
+            if (_selLabCard?.CardInstance == ci)
+            {
+                _selLabCard.SetSelected(false); _selLabCard = null;
+                UpdateButtons(); return;
+            }
+            // Un-stacked Cyborg → enter stack mode instead of toggling attacker
+            if (ci.data.unitType == UnitType.Cyborg && ci.stackedWith == null)
             {
                 _selLabCard?.SetSelected(false);
                 _selLabCard = cv; cv.SetSelected(true);
-                _pendingDef = ci;
-                _statusLabel.text = "Now tap an attacker\nto block it.";
+                _statusLabel.text = "Cyborg selected.\nTap another lab unit to stack.";
+                UpdateButtons(); return;
             }
+            // Stacked or non-Cyborg: toggle as attacker normally
+            if (_attackers.Contains(ci)) { _attackers.Remove(ci); cv.SetSelected(false); }
+            else                         { _attackers.Add(ci);    cv.SetSelected(true); }
+            UpdateButtons();
         }
     }
 
-    private void OnOpponentLabClick(CardView cv)
+    // No-op during normal attacker turn — kept to satisfy spawn signature
+    private void OnOpponentLabClick(CardView cv) { }
+
+    // Defender (bottom after perspective swap) selects their own unit to block with
+    private void OnDefenderLabClick(CardView cv)
     {
-        if (_bSub != BattleSub.DeclareDefend) return;
+        var ci = cv.CardInstance;
+        var gm = GameManager.Instance;
+
+        // Cyborg in stack mode → try to pair with this unit
+        if (_selLabCard != null && _pendingDef == null && _selLabCard.CardInstance != ci)
+        {
+            bool ok = gm.TryStackUnits(_selLabCard.CardInstance, ci);
+            _selLabCard.SetSelected(false); _selLabCard = null;
+            if (ok) { _statusLabel.text = "Units stacked!"; RebuildZones(); }
+            else      _statusLabel.text = "Stack requires a Cyborg + non-Cyborg.";
+            UpdateButtons(); return;
+        }
+        // Tap same card in stack mode → cancel
+        if (_selLabCard?.CardInstance == ci && _pendingDef == null)
+        {
+            _selLabCard.SetSelected(false); _selLabCard = null;
+            UpdateButtons(); return;
+        }
+        // Un-stacked Cyborg → enter stack mode
+        if (ci.data.unitType == UnitType.Cyborg && ci.stackedWith == null)
+        {
+            _selLabCard?.SetSelected(false); _pendingDef = null;
+            _selLabCard = cv; cv.SetSelected(true);
+            _statusLabel.text = "Cyborg selected.\nTap another unit to stack.";
+            UpdateButtons(); return;
+        }
+        // Normal blocker assignment
+        _selLabCard?.SetSelected(false); _selLabCard = null;
+        _selLabCard = cv; cv.SetSelected(true);
+        _pendingDef = ci;
+        _statusLabel.text = "Now tap one of the\nattacking units at the top.";
+    }
+
+    // Defender taps an attacker (top after perspective swap) to assign the pending blocker
+    private void OnAttackerLabClick(CardView cv)
+    {
         var atk = cv.CardInstance;
-        if (!_attackers.Contains(atk))  { _statusLabel.text = "That unit isn't attacking."; return; }
+        if (!_attackers.Contains(atk)) { _statusLabel.text = "That unit isn't attacking."; return; }
         if (_pendingDef == null) { _statusLabel.text = "Select one of your units first."; return; }
 
         _defenders[atk] = _pendingDef;
         cv.SetSelected(true);
         _selLabCard?.SetSelected(false);
         _selLabCard = null; _pendingDef = null;
-        _statusLabel.text = "Assigned! Select another\nor Confirm Defense.";
+        _statusLabel.text = "Blocker assigned!\nSelect another or Confirm.";
         UpdateButtons();
     }
 
@@ -591,28 +834,22 @@ public class PsiWarsGame : MonoBehaviour
 
         // ─ Next Phase button ──────────────────────────────────────────────────
         _btnNext.onClick.RemoveAllListeners();
-        bool showNext = phase != TurnPhase.Battle || _bSub == BattleSub.None;
+        // Replenish / Draw / Cleanup auto-advance — hide the button entirely
+        bool showNext = phase == TurnPhase.Creation ||
+                       (phase == TurnPhase.Battle && _bSub == BattleSub.None);
         _btnNext.gameObject.SetActive(showNext);
 
         switch (phase)
         {
-            case TurnPhase.Replenish:
-            case TurnPhase.Draw:
-                _btnNextLbl.text = "Continue →";
-                _btnNext.onClick.AddListener(() => gm.AdvancePhase());
-                break;
             case TurnPhase.Creation:
-                _btnNextLbl.text = "Go to Battle →";
+                if (_btnNextLbl) _btnNextLbl.text = "Go to Battle →";
                 _btnNext.onClick.AddListener(() => gm.AdvancePhase());
                 break;
             case TurnPhase.Battle:
-                _btnNextLbl.text = "Skip Battle →";
+                if (_btnNextLbl) _btnNextLbl.text = "Skip Battle →";
                 _btnNext.onClick.AddListener(() => { _bSub = BattleSub.None; gm.AdvancePhase(); });
                 break;
-            case TurnPhase.Cleanup:
-                _btnNextLbl.text = "End Turn →";
-                _btnNext.onClick.AddListener(() => gm.AdvancePhase());
-                break;
+            // Replenish, Draw, Cleanup: auto-advance via coroutine — no button needed
         }
 
         // ─ Action button ──────────────────────────────────────────────────────
@@ -621,29 +858,118 @@ public class PsiWarsGame : MonoBehaviour
 
         if (phase == TurnPhase.Creation)
         {
-            _btnActLbl.text   = "Play Card";
-            bool canPlay      = _selHandCard != null && gm.CurrentPlayer.CanAfford(_selHandCard.CardInstance.data);
-            _btnAct.interactable = canPlay;
-            _btnAct.onClick.AddListener(OnPlayCard);
+            // Lab card selected: stack/unstack mode takes priority
+            if (_selLabCard != null)
+            {
+                if (_selLabCard.CardInstance.stackedWith != null)
+                {
+                    if (_btnActLbl) _btnActLbl.text = "Unstack";
+                    _btnAct.interactable = true;
+                    _btnAct.onClick.AddListener(() =>
+                    {
+                        gm.UnstackUnit(_selLabCard.CardInstance);
+                        _selLabCard?.SetSelected(false); _selLabCard = null;
+                        RebuildZones(); UpdateButtons();
+                    });
+                }
+                else // Cyborg in "pick partner" mode
+                {
+                    if (_btnActLbl) _btnActLbl.text = "Cancel Stack";
+                    _btnAct.interactable = true;
+                    _btnAct.onClick.AddListener(() =>
+                    {
+                        _selLabCard?.SetSelected(false); _selLabCard = null;
+                        UpdateButtons();
+                    });
+                }
+            }
+            else if (_selHandCard != null && _selHandCard.CardInstance.data.cardType == CardType.Equipment)
+            {
+                // Equipment selected — must be applied by clicking a lab unit
+                if (_btnActLbl) _btnActLbl.text = "Tap a lab unit to equip";
+                _btnAct.interactable = false;
+                _btnAct.onClick.AddListener(OnPlayCard); // no-op placeholder
+            }
+            else
+            {
+                if (_btnActLbl) _btnActLbl.text = "Play Card";
+                bool canPlay = _selHandCard != null &&
+                    (_selHandCard.CardInstance.data.cardType == CardType.CreationUnit ||
+                     gm.CurrentPlayer.CanAfford(_selHandCard.CardInstance.data));
+                _btnAct.interactable = canPlay;
+                _btnAct.onClick.AddListener(OnPlayCard);
+            }
         }
         else if (phase == TurnPhase.Battle)
         {
             switch (_bSub)
             {
                 case BattleSub.None:
-                    _btnActLbl.text      = "Declare Attackers";
+                    if (_btnActLbl) _btnActLbl.text = "Declare Attackers";
                     _btnAct.interactable = gm.CurrentPlayer.lab.FindAll(c => c.data.cardType == CardType.BattleUnit).Count > 0;
                     _btnAct.onClick.AddListener(EnterDeclareAtk);
                     break;
                 case BattleSub.DeclareAtk:
-                    _btnActLbl.text      = "Confirm Attackers";
-                    _btnAct.interactable = true;
-                    _btnAct.onClick.AddListener(ConfirmAttackers);
+                    if (_selLabCard != null)
+                    {
+                        // A Cyborg is selected for stacking — show stack controls
+                        if (_selLabCard.CardInstance.stackedWith != null)
+                        {
+                            if (_btnActLbl) _btnActLbl.text = "Unstack";
+                            _btnAct.interactable = true;
+                            _btnAct.onClick.AddListener(() => {
+                                gm.UnstackUnit(_selLabCard.CardInstance);
+                                _selLabCard?.SetSelected(false); _selLabCard = null;
+                                RebuildZones(); UpdateButtons();
+                            });
+                        }
+                        else
+                        {
+                            if (_btnActLbl) _btnActLbl.text = "Cancel Stack";
+                            _btnAct.interactable = true;
+                            _btnAct.onClick.AddListener(() => {
+                                _selLabCard?.SetSelected(false); _selLabCard = null;
+                                UpdateButtons();
+                            });
+                        }
+                    }
+                    else
+                    {
+                        if (_btnActLbl) _btnActLbl.text = "Confirm Attackers";
+                        _btnAct.interactable = true;
+                        _btnAct.onClick.AddListener(ConfirmAttackers);
+                    }
                     break;
                 case BattleSub.DeclareDefend:
-                    _btnActLbl.text      = "Confirm Defense";
-                    _btnAct.interactable = true;
-                    _btnAct.onClick.AddListener(ConfirmDefenders);
+                    if (_selLabCard != null && _pendingDef == null)
+                    {
+                        // A Cyborg is selected for stacking — show stack controls
+                        if (_selLabCard.CardInstance.stackedWith != null)
+                        {
+                            if (_btnActLbl) _btnActLbl.text = "Unstack";
+                            _btnAct.interactable = true;
+                            _btnAct.onClick.AddListener(() => {
+                                gm.UnstackUnit(_selLabCard.CardInstance);
+                                _selLabCard?.SetSelected(false); _selLabCard = null;
+                                RebuildZones(); UpdateButtons();
+                            });
+                        }
+                        else
+                        {
+                            if (_btnActLbl) _btnActLbl.text = "Cancel Stack";
+                            _btnAct.interactable = true;
+                            _btnAct.onClick.AddListener(() => {
+                                _selLabCard?.SetSelected(false); _selLabCard = null;
+                                UpdateButtons();
+                            });
+                        }
+                    }
+                    else
+                    {
+                        if (_btnActLbl) _btnActLbl.text = "Confirm Defense";
+                        _btnAct.interactable = true;
+                        _btnAct.onClick.AddListener(ConfirmDefenders);
+                    }
                     break;
                 default:
                     _btnAct.gameObject.SetActive(false);
@@ -653,6 +979,15 @@ public class PsiWarsGame : MonoBehaviour
         else
         {
             _btnAct.gameObject.SetActive(false);
+        }
+
+        // ─ View Hand button (Battle phase only) ───────────────────────────────
+        if (_btnViewHand != null)
+        {
+            bool showViewHand = phase == TurnPhase.Battle;
+            _btnViewHand.gameObject.SetActive(showViewHand);
+            if (showViewHand && _btnViewHandLbl != null)
+                _btnViewHandLbl.text = _handExpanded ? "▼ Hide Hand" : "▲ View Hand";
         }
     }
 
@@ -691,6 +1026,7 @@ public class PsiWarsGame : MonoBehaviour
             {
                 _bSub = BattleSub.DeclareDefend;
                 _defenders.Clear();
+                _selLabCard = null; _pendingDef = null;
                 RebuildZones(); UpdateButtons();
             });
             _flipper.Flip();
@@ -840,23 +1176,24 @@ public class PsiWarsGame : MonoBehaviour
         s.preferredHeight = height;
     }
 
-    private Transform MakeZone(string name, Transform parent, float yMin, float yMax, string label, Color bg)
+    // Builds a zone container WITHOUT positioning (anchors set by ApplyPhaseLayout).
+    // Cards have a fixed preferred height; zones that are smaller clip them (peek effect).
+    private RectTransform MakeZoneContainer(string name, Transform parent, string label, Color bg, out Transform content)
     {
         var container = new GameObject(name);
         container.transform.SetParent(parent, false);
-        var rt = container.AddComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0, yMin); rt.anchorMax = new Vector2(1, yMax);
-        rt.offsetMin = rt.offsetMax = Vector2.zero;
+        var rt = container.AddComponent<RectTransform>();  // positioned later
         container.AddComponent<Image>().color = bg;
 
-        var lbl = MakeText(label, container.transform, 11);
+        // Zone label (bottom-left watermark)
+        var lbl = MakeText(label, container.transform, 10);
         var lRT = lbl.GetComponent<RectTransform>();
-        lRT.anchorMin = new Vector2(0.01f, 0f); lRT.anchorMax = new Vector2(0.3f, 0.35f);
+        lRT.anchorMin = new Vector2(0.01f, 0f); lRT.anchorMax = new Vector2(0.55f, 0.38f);
         lRT.offsetMin = lRT.offsetMax = Vector2.zero;
         lbl.alignment = TextAlignmentOptions.BottomLeft;
-        lbl.color = new Color(0.45f, 0.45f, 0.55f, 0.9f);
+        lbl.color = new Color(0.42f, 0.42f, 0.54f, 0.85f);
 
-        // Horizontal scroll view
+        // Horizontally scrollable card row
         var sv = new GameObject("Scroll"); sv.transform.SetParent(container.transform, false);
         var svRT = sv.AddComponent<RectTransform>();
         svRT.anchorMin = Vector2.zero; svRT.anchorMax = Vector2.one;
@@ -869,23 +1206,304 @@ public class PsiWarsGame : MonoBehaviour
         var vpRT = vp.AddComponent<RectTransform>();
         vpRT.anchorMin = Vector2.zero; vpRT.anchorMax = Vector2.one;
         vpRT.offsetMin = vpRT.offsetMax = Vector2.zero;
-        vp.AddComponent<Mask>().showMaskGraphic = false;
-        vp.AddComponent<Image>().color = Color.clear;
+        vp.AddComponent<RectMask2D>(); // rect-based clipping — no stencil needed
         sr.viewport = vpRT;
 
-        var content = new GameObject("Content"); content.transform.SetParent(vp.transform, false);
-        var cRT = content.AddComponent<RectTransform>();
+        var c = new GameObject("Content"); c.transform.SetParent(vp.transform, false);
+        var cRT = c.AddComponent<RectTransform>();
         cRT.anchorMin = Vector2.zero; cRT.anchorMax = new Vector2(0, 1);
         cRT.pivot = new Vector2(0, 0.5f);
         cRT.offsetMin = cRT.offsetMax = Vector2.zero;
-        var hlg = content.AddComponent<HorizontalLayoutGroup>();
-        hlg.spacing = 6; hlg.padding = new RectOffset(6, 6, 6, 6);
-        hlg.childControlHeight = true; hlg.childForceExpandHeight = true;
-        hlg.childControlWidth = false; hlg.childForceExpandWidth = false;
-        content.AddComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+        var hlg = c.AddComponent<HorizontalLayoutGroup>();
+        hlg.spacing = 6; hlg.padding = new RectOffset(8, 8, 6, 6);
+        hlg.childAlignment = TextAnchor.MiddleLeft;
+        // childControlHeight=true + childForceExpandHeight=false → cards use preferredHeight,
+        // but zone clips them (RectMask2D) when the zone is shorter — gives a "peek" effect
+        hlg.childControlHeight = true;  hlg.childForceExpandHeight = false;
+        hlg.childControlWidth  = false; hlg.childForceExpandWidth  = false;
+        c.AddComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
         sr.content = cRT;
 
-        return content.transform;
+        content = c.transform;
+        return rt;
+    }
+
+    // ── Phase-adaptive layout ─────────────────────────────────────────────────
+
+    private void ApplyPhaseLayout(TurnPhase phase)
+    {
+        if (_zoneHandCon == null) return; // panel not built yet
+
+        bool isBattle = phase == TurnPhase.Battle;
+
+        if (isBattle && _handExpanded)
+        {
+            // Battle – hand expanded (slides up, overlaps labs)
+            // Opponent area stays compressed; hand gets the bottom 45%
+            SetZoneAnchors(_zoneOpCUCon,  0.93f, 1.00f);
+            SetZoneAnchors(_zoneOpLabCon, 0.80f, 0.93f);
+            SetZoneAnchors(_dividerRT,    0.78f, 0.80f);
+            SetZoneAnchors(_zoneMyLabCon, 0.65f, 0.78f);
+            SetZoneAnchors(_zoneMyCUCon,  0.58f, 0.65f);
+            SetZoneAnchors(_zoneHandCon,  0.00f, 0.58f); // big — hand card tops visible
+            _zoneHandCon.SetAsLastSibling();              // render on top of labs
+        }
+        else if (isBattle)
+        {
+            // Battle – standard: both labs large, hand collapsed to a peek strip
+            SetZoneAnchors(_zoneOpCUCon,  0.93f, 1.00f);
+            SetZoneAnchors(_zoneOpLabCon, 0.52f, 0.93f);
+            SetZoneAnchors(_dividerRT,    0.50f, 0.52f);
+            SetZoneAnchors(_zoneMyLabCon, 0.09f, 0.50f);
+            SetZoneAnchors(_zoneMyCUCon,  0.04f, 0.09f);
+            SetZoneAnchors(_zoneHandCon,  0.00f, 0.04f); // thin strip — card tops peeking
+        }
+        else
+        {
+            // Creation / Replenish / Draw: big hand, visible CUs, small opponent strip
+            SetZoneAnchors(_zoneOpCUCon,  0.91f, 1.00f);
+            SetZoneAnchors(_zoneOpLabCon, 0.76f, 0.91f);
+            SetZoneAnchors(_dividerRT,    0.74f, 0.76f);
+            SetZoneAnchors(_zoneMyLabCon, 0.57f, 0.74f);
+            SetZoneAnchors(_zoneMyCUCon,  0.41f, 0.57f);
+            SetZoneAnchors(_zoneHandCon,  0.00f, 0.41f); // 41% — full cards visible
+        }
+    }
+
+    private static void SetZoneAnchors(RectTransform rt, float yMin, float yMax)
+    {
+        if (rt == null) return;
+        rt.anchorMin = new Vector2(0, yMin);
+        rt.anchorMax = new Vector2(1, yMax);
+        rt.offsetMin = rt.offsetMax = Vector2.zero;
+    }
+
+    private void ToggleHandView()
+    {
+        _handExpanded = !_handExpanded;
+        if (_btnViewHandLbl) _btnViewHandLbl.text = _handExpanded ? "▼ Hide Hand" : "▲ View Hand";
+        ApplyPhaseLayout(GameManager.Instance.CurrentPhase);
+    }
+
+    // ── Stacked-unit card (Cyborg on top half, partner on bottom half) ──────────
+
+    private void SpawnStackedUnit(CardInstance cyborg, CardInstance partner, Transform parent,
+                                  System.Action<CardView> onClick)
+    {
+        var go = new GameObject($"[{cyborg.data.cardName}+{partner.data.cardName}]");
+        go.transform.SetParent(parent, false);
+        go.AddComponent<RectTransform>();
+
+        var le = go.AddComponent<LayoutElement>();
+        le.preferredWidth = 130; le.preferredHeight = 170;
+        le.minWidth = 110; le.minHeight = 140;
+
+        // Split background: Cyborg color top 62%, partner color bottom 38%
+        var bgTop = new GameObject("BgT"); bgTop.transform.SetParent(go.transform, false);
+        var bgTopRT = bgTop.AddComponent<RectTransform>();
+        bgTopRT.anchorMin = new Vector2(0, 0.38f); bgTopRT.anchorMax = Vector2.one;
+        bgTopRT.offsetMin = bgTopRT.offsetMax = Vector2.zero;
+        bgTop.AddComponent<Image>().color = CardColor(cyborg.data);
+
+        var bgBot = new GameObject("BgB"); bgBot.transform.SetParent(go.transform, false);
+        var bgBotRT = bgBot.AddComponent<RectTransform>();
+        bgBotRT.anchorMin = Vector2.zero; bgBotRT.anchorMax = new Vector2(1, 0.38f);
+        bgBotRT.offsetMin = bgBotRT.offsetMax = Vector2.zero;
+        bgBot.AddComponent<Image>().color = CardColor(partner.data);
+
+        // Type band: "CYBORG STACK"
+        var bandGO = new GameObject("Band"); bandGO.transform.SetParent(go.transform, false);
+        var bandRT = bandGO.AddComponent<RectTransform>();
+        bandRT.anchorMin = new Vector2(0, 0.82f); bandRT.anchorMax = Vector2.one;
+        bandRT.offsetMin = bandRT.offsetMax = Vector2.zero;
+        bandGO.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.50f);
+        var tGO = new GameObject("T"); tGO.transform.SetParent(bandGO.transform, false);
+        var tRT = tGO.AddComponent<RectTransform>();
+        tRT.anchorMin = Vector2.zero; tRT.anchorMax = Vector2.one;
+        tRT.offsetMin = new Vector2(3, 1); tRT.offsetMax = new Vector2(-3, -1);
+        var tTMP = tGO.AddComponent<TextMeshProUGUI>();
+        tTMP.text = "CYBORG STACK"; tTMP.fontSize = 9; tTMP.fontStyle = FontStyles.Bold;
+        tTMP.color = new Color(1f, 0.88f, 0.4f); tTMP.alignment = TextAlignmentOptions.Center;
+
+        // Cyborg name: 0.62–0.82
+        var cnGO = new GameObject("CyName"); cnGO.transform.SetParent(go.transform, false);
+        var cnRT = cnGO.AddComponent<RectTransform>();
+        cnRT.anchorMin = new Vector2(0, 0.62f); cnRT.anchorMax = new Vector2(1, 0.82f);
+        cnRT.offsetMin = new Vector2(4, 2); cnRT.offsetMax = new Vector2(-4, -2);
+        var cnTMP = cnGO.AddComponent<TextMeshProUGUI>();
+        cnTMP.text = cyborg.data.cardName; cnTMP.fontSize = 13; cnTMP.fontStyle = FontStyles.Bold;
+        cnTMP.color = Color.white; cnTMP.alignment = TextAlignmentOptions.Center;
+        cnTMP.enableWordWrapping = true;
+
+        // Combined stats: 0.42–0.62
+        var stGO = new GameObject("Stats"); stGO.transform.SetParent(go.transform, false);
+        var stRT = stGO.AddComponent<RectTransform>();
+        stRT.anchorMin = new Vector2(0, 0.42f); stRT.anchorMax = new Vector2(1, 0.62f);
+        stRT.offsetMin = new Vector2(4, 0); stRT.offsetMax = new Vector2(-4, 0);
+        var stTMP = stGO.AddComponent<TextMeshProUGUI>();
+        stTMP.text = $"Cy {cyborg.CyberStrength}   Ps {cyborg.PsionicStrength}   Ph {cyborg.PhysicalStrength}";
+        stTMP.fontSize = 12; stTMP.color = new Color(1f, 0.90f, 0.25f);
+        stTMP.alignment = TextAlignmentOptions.Center;
+
+        // Thin white divider line at 0.40
+        var divGO = new GameObject("Div"); divGO.transform.SetParent(go.transform, false);
+        var divRT = divGO.AddComponent<RectTransform>();
+        divRT.anchorMin = new Vector2(0.04f, 0.395f); divRT.anchorMax = new Vector2(0.96f, 0.410f);
+        divRT.offsetMin = divRT.offsetMax = Vector2.zero;
+        divGO.AddComponent<Image>().color = new Color(1f, 1f, 1f, 0.45f);
+
+        // Partner type: 0.25–0.39
+        var ptGO = new GameObject("PType"); ptGO.transform.SetParent(go.transform, false);
+        var ptRT = ptGO.AddComponent<RectTransform>();
+        ptRT.anchorMin = new Vector2(0, 0.25f); ptRT.anchorMax = new Vector2(1, 0.39f);
+        ptRT.offsetMin = new Vector2(4, 0); ptRT.offsetMax = new Vector2(-4, 0);
+        var ptTMP = ptGO.AddComponent<TextMeshProUGUI>();
+        ptTMP.text = $"+ {partner.data.unitType.ToString().ToUpper()}"; ptTMP.fontSize = 9;
+        ptTMP.fontStyle = FontStyles.Bold;
+        ptTMP.color = new Color(1f, 0.88f, 0.4f); ptTMP.alignment = TextAlignmentOptions.Center;
+
+        // Partner name: 0.03–0.25
+        var pnGO = new GameObject("PName"); pnGO.transform.SetParent(go.transform, false);
+        var pnRT = pnGO.AddComponent<RectTransform>();
+        pnRT.anchorMin = new Vector2(0, 0.03f); pnRT.anchorMax = new Vector2(1, 0.25f);
+        pnRT.offsetMin = new Vector2(4, 2); pnRT.offsetMax = new Vector2(-4, -2);
+        var pnTMP = pnGO.AddComponent<TextMeshProUGUI>();
+        pnTMP.text = partner.data.cardName; pnTMP.fontSize = 12; pnTMP.fontStyle = FontStyles.Bold;
+        pnTMP.color = Color.white; pnTMP.alignment = TextAlignmentOptions.Center;
+        pnTMP.enableWordWrapping = true;
+
+        // Selection highlight
+        var selGO = new GameObject("Sel"); selGO.transform.SetParent(go.transform, false);
+        selGO.transform.SetAsFirstSibling();
+        var selRT = selGO.AddComponent<RectTransform>();
+        selRT.anchorMin = Vector2.zero; selRT.anchorMax = Vector2.one;
+        selRT.offsetMin = new Vector2(-4, -4); selRT.offsetMax = new Vector2(4, 4);
+        var selImg = selGO.AddComponent<Image>();
+        selImg.color = new Color(1f, 1f, 0f, 0.80f); selImg.raycastTarget = false;
+        selGO.SetActive(false);
+
+        // Disoriented overlay
+        var dioGO = new GameObject("Diso"); dioGO.transform.SetParent(go.transform, false);
+        var dioRT = dioGO.AddComponent<RectTransform>();
+        dioRT.anchorMin = Vector2.zero; dioRT.anchorMax = Vector2.one;
+        dioRT.offsetMin = dioRT.offsetMax = Vector2.zero;
+        var dioImg = dioGO.AddComponent<Image>();
+        dioImg.color = new Color(1f, 0.1f, 0.1f, 0.40f); dioImg.raycastTarget = false;
+        dioGO.SetActive(cyborg.isDisoriented || partner.isDisoriented);
+
+        var cv = go.AddComponent<CardView>();
+        cv.artworkImage = null; cv.selectedHighlight = selGO;
+        cv.disorientedOverlay = dioGO; cv.depletedOverlay = null;
+        cv.Init(cyborg, onClick ?? (_ => { }));
+        _views.Add(cv);
+    }
+
+    // ── Grouped creation-unit card (one card per type, with count badge) ────────
+
+    private void SpawnCUStack(List<CardInstance> cus, Transform parent)
+    {
+        if (cus == null || cus.Count == 0) return;
+        var rep   = cus[0];
+        int total = cus.Count;
+        int avail = cus.FindAll(c => !c.isDepleted).Count;
+
+        var go = new GameObject($"{rep.data.cardName}x{total}");
+        go.transform.SetParent(parent, false);
+        go.AddComponent<RectTransform>();
+        go.AddComponent<Image>().color = CardColor(rep.data);
+        var le = go.AddComponent<LayoutElement>();
+        le.preferredWidth = 130; le.preferredHeight = 170;
+        le.minWidth = 110; le.minHeight = 140;
+
+        // Type band
+        var bndGO = new GameObject("Band"); bndGO.transform.SetParent(go.transform, false);
+        var bndRT = bndGO.AddComponent<RectTransform>();
+        bndRT.anchorMin = new Vector2(0, 0.80f); bndRT.anchorMax = Vector2.one;
+        bndRT.offsetMin = bndRT.offsetMax = Vector2.zero;
+        bndGO.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.50f);
+        var bTxtGO = new GameObject("T"); bTxtGO.transform.SetParent(bndGO.transform, false);
+        var bTxtRT = bTxtGO.AddComponent<RectTransform>();
+        bTxtRT.anchorMin = Vector2.zero; bTxtRT.anchorMax = Vector2.one;
+        bTxtRT.offsetMin = new Vector2(3, 1); bTxtRT.offsetMax = new Vector2(-3, -1);
+        var bTMP = bTxtGO.AddComponent<TextMeshProUGUI>();
+        bTMP.text = TypeStr(rep.data); bTMP.fontSize = 10; bTMP.fontStyle = FontStyles.Bold;
+        bTMP.color = new Color(1f, 0.88f, 0.4f); bTMP.alignment = TextAlignmentOptions.Center;
+        bTMP.enableWordWrapping = true;
+
+        // Count badge (dark pill, top-right corner)
+        var badgeGO = new GameObject("Badge"); badgeGO.transform.SetParent(go.transform, false);
+        var badgeRT = badgeGO.AddComponent<RectTransform>();
+        badgeRT.anchorMin = new Vector2(0.58f, 0.55f); badgeRT.anchorMax = new Vector2(1f, 0.80f);
+        badgeRT.offsetMin = new Vector2(0, 2); badgeRT.offsetMax = new Vector2(-2, 0);
+        badgeGO.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.70f);
+        var baTxtGO = new GameObject("T"); baTxtGO.transform.SetParent(badgeGO.transform, false);
+        var baTxtRT = baTxtGO.AddComponent<RectTransform>();
+        baTxtRT.anchorMin = Vector2.zero; baTxtRT.anchorMax = Vector2.one;
+        baTxtRT.offsetMin = baTxtRT.offsetMax = Vector2.zero;
+        var baTMP = baTxtGO.AddComponent<TextMeshProUGUI>();
+        baTMP.text = $"×{avail}"; baTMP.fontSize = 18; baTMP.fontStyle = FontStyles.Bold;
+        baTMP.color = Color.white; baTMP.alignment = TextAlignmentOptions.Center;
+
+        // Small gray depleted count badge in bottom-right when any are spent
+        if (total - avail > 0)
+        {
+            var dBadgeGO = new GameObject("DepBadge"); dBadgeGO.transform.SetParent(go.transform, false);
+            var dBadgeRT = dBadgeGO.AddComponent<RectTransform>();
+            dBadgeRT.anchorMin = new Vector2(0.55f, 0f); dBadgeRT.anchorMax = new Vector2(1f, 0.18f);
+            dBadgeRT.offsetMin = new Vector2(0, 2); dBadgeRT.offsetMax = new Vector2(-2, 0);
+            dBadgeGO.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.60f);
+            var dBTxtGO = new GameObject("T"); dBTxtGO.transform.SetParent(dBadgeGO.transform, false);
+            var dBTxtRT = dBTxtGO.AddComponent<RectTransform>();
+            dBTxtRT.anchorMin = Vector2.zero; dBTxtRT.anchorMax = Vector2.one;
+            dBTxtRT.offsetMin = dBTxtRT.offsetMax = Vector2.zero;
+            var dBTMP = dBTxtGO.AddComponent<TextMeshProUGUI>();
+            dBTMP.text = $"×{total - avail}"; dBTMP.fontSize = 13;
+            dBTMP.color = new Color(0.60f, 0.60f, 0.60f, 1f); dBTMP.alignment = TextAlignmentOptions.Center;
+        }
+
+        // Card name (left of badge)
+        var nGO = new GameObject("Name"); nGO.transform.SetParent(go.transform, false);
+        var nRT = nGO.AddComponent<RectTransform>();
+        nRT.anchorMin = new Vector2(0, 0.43f); nRT.anchorMax = new Vector2(0.60f, 0.80f);
+        nRT.offsetMin = new Vector2(4, 2); nRT.offsetMax = new Vector2(-2, -2);
+        var nTMP = nGO.AddComponent<TextMeshProUGUI>();
+        nTMP.text = rep.data.cardName; nTMP.fontSize = 13; nTMP.fontStyle = FontStyles.Bold;
+        nTMP.color = Color.white; nTMP.alignment = TextAlignmentOptions.TopLeft;
+        nTMP.enableWordWrapping = true;
+
+        // Availability indicator
+        var aGO = new GameObject("Avail"); aGO.transform.SetParent(go.transform, false);
+        var aRT = aGO.AddComponent<RectTransform>();
+        aRT.anchorMin = new Vector2(0, 0.14f); aRT.anchorMax = new Vector2(1, 0.43f);
+        aRT.offsetMin = new Vector2(4, 0); aRT.offsetMax = new Vector2(-4, 0);
+        var aTMP = aGO.AddComponent<TextMeshProUGUI>();
+        aTMP.text = avail == total ? $"✓ {avail} available"
+                                   : $"✓ {avail} ready   ◉ {total - avail} spent";
+        aTMP.fontSize = 11;
+        aTMP.color = avail > 0 ? new Color(0.55f, 1f, 0.55f) : new Color(1f, 0.45f, 0.45f);
+        aTMP.alignment = TextAlignmentOptions.Center;
+        aTMP.enableWordWrapping = true;
+
+        // Full depleted overlay when all are spent
+        if (avail == 0)
+        {
+            var dGO = new GameObject("Dep"); dGO.transform.SetParent(go.transform, false);
+            var dRT = dGO.AddComponent<RectTransform>();
+            dRT.anchorMin = Vector2.zero; dRT.anchorMax = Vector2.one;
+            dRT.offsetMin = dRT.offsetMax = Vector2.zero;
+            var dImg = dGO.AddComponent<Image>();
+            dImg.color = new Color(0.05f, 0.05f, 0.05f, 0.58f); dImg.raycastTarget = false;
+        }
+        else if (avail < total) // Partial depletion: darken bottom portion
+        {
+            float ratio = (float)(total - avail) / total;
+            var pdGO = new GameObject("PDep"); pdGO.transform.SetParent(go.transform, false);
+            var pdRT = pdGO.AddComponent<RectTransform>();
+            pdRT.anchorMin = Vector2.zero; pdRT.anchorMax = new Vector2(1, ratio * 0.6f);
+            pdRT.offsetMin = pdRT.offsetMax = Vector2.zero;
+            var pdImg = pdGO.AddComponent<Image>();
+            pdImg.color = new Color(0.05f, 0.05f, 0.05f, 0.38f); pdImg.raycastTarget = false;
+        }
     }
 
     private static GameObject MakeScrollView(Transform parent, Vector2 ancMin, Vector2 ancMax, out Transform content)
@@ -901,8 +1519,7 @@ public class PsiWarsGame : MonoBehaviour
         var vpRT = vp.AddComponent<RectTransform>();
         vpRT.anchorMin = Vector2.zero; vpRT.anchorMax = Vector2.one;
         vpRT.offsetMin = vpRT.offsetMax = Vector2.zero;
-        vp.AddComponent<Mask>().showMaskGraphic = false;
-        vp.AddComponent<Image>().color = Color.clear;
+        vp.AddComponent<RectMask2D>(); // clips children without stencil — avoids Color.clear mask bug
         sr.viewport = vpRT;
 
         var c = new GameObject("Content"); c.transform.SetParent(vp.transform, false);
@@ -941,21 +1558,27 @@ public class PsiWarsGame : MonoBehaviour
     private static string StatsStr(CardInstance ci)
     {
         if (ci.data.cardType == CardType.BattleUnit)
-            return $"C:{ci.CyberStrength}  P:{ci.PsionicStrength}  Ph:{ci.PhysicalStrength}";
+            return $"Cy {ci.CyberStrength}   Ps {ci.PsionicStrength}   Ph {ci.PhysicalStrength}";
         if (ci.data.cardType == CardType.Equipment)
-            return $"+C:{ci.data.equipCyberBonus} +P:{ci.data.equipPsionicBonus} +Ph:{ci.data.equipPhysicalBonus}";
+        {
+            var p = new List<string>();
+            if (ci.data.equipCyberBonus    > 0) p.Add($"+{ci.data.equipCyberBonus} Cy");
+            if (ci.data.equipPsionicBonus  > 0) p.Add($"+{ci.data.equipPsionicBonus} Ps");
+            if (ci.data.equipPhysicalBonus > 0) p.Add($"+{ci.data.equipPhysicalBonus} Ph");
+            return string.Join("  ", p);
+        }
         return "";
     }
 
     private static string CostStr(CardData d)
     {
         var p = new List<string>();
-        if (d.costDigitalSplicing   > 0) p.Add($"G:{d.costDigitalSplicing}");
-        if (d.costNeurogenesis      > 0) p.Add($"B:{d.costNeurogenesis}");
-        if (d.costBioAcceleration   > 0) p.Add($"R:{d.costBioAcceleration}");
-        if (d.costMaterialAnimation > 0) p.Add($"M:{d.costMaterialAnimation}");
-        if (d.costDestroy           > 0) p.Add($"W:{d.costDestroy}");
-        return string.Join(" ", p);
+        if (d.costDigitalSplicing   > 0) p.Add($"DS×{d.costDigitalSplicing}");
+        if (d.costNeurogenesis      > 0) p.Add($"NG×{d.costNeurogenesis}");
+        if (d.costBioAcceleration   > 0) p.Add($"BA×{d.costBioAcceleration}");
+        if (d.costMaterialAnimation > 0) p.Add($"MA×{d.costMaterialAnimation}");
+        if (d.costDestroy           > 0) p.Add($"Sac×{d.costDestroy}");
+        return string.Join("  ", p);
     }
 
     private static string TypeStr(CardData d)
@@ -963,7 +1586,14 @@ public class PsiWarsGame : MonoBehaviour
         if (d.cardType == CardType.BattleUnit) return d.unitType.ToString().ToUpper();
         if (d.cardType == CardType.Equipment)  return "EQUIPMENT";
         if (d.cardType == CardType.Power)      return "POWER";
-        return d.creationUnitType.ToString().ToUpper();
+        return d.creationUnitType switch
+        {
+            CreationUnitType.DigitalSplicing   => "DIGITAL SPLICING",
+            CreationUnitType.BioAcceleration   => "BIO-ACCELERATION",
+            CreationUnitType.Neurogenesis      => "NEUROGENESIS",
+            CreationUnitType.MaterialAnimation => "MATERIAL ANIMATION",
+            _                                  => "CREATION UNIT"
+        };
     }
 
     private static Color CardColor(CardData d)
@@ -971,20 +1601,19 @@ public class PsiWarsGame : MonoBehaviour
         if (d.cardType == CardType.CreationUnit)
             return d.creationUnitType switch
             {
-                CreationUnitType.DigitalSplicing  => new Color(0.10f, 0.38f, 0.10f),
-                CreationUnitType.Neurogenesis      => new Color(0.08f, 0.20f, 0.48f),
-                CreationUnitType.BioAcceleration   => new Color(0.48f, 0.08f, 0.08f),
-                CreationUnitType.MaterialAnimation => new Color(0.35f, 0.08f, 0.38f),
-                _                                  => new Color(0.18f, 0.18f, 0.22f)
+                CreationUnitType.DigitalSplicing   => new Color(0.08f, 0.58f, 0.18f), // green
+                CreationUnitType.Neurogenesis       => new Color(0.10f, 0.22f, 0.72f), // blue
+                CreationUnitType.BioAcceleration    => new Color(0.72f, 0.10f, 0.10f), // red
+                CreationUnitType.MaterialAnimation  => new Color(0.52f, 0.08f, 0.68f), // purple
+                _                                   => new Color(0.20f, 0.20f, 0.25f)
             };
+        if (d.cardType == CardType.Equipment) return new Color(0.45f, 0.26f, 0.08f); // warm brown
         return d.unitType switch
         {
-            UnitType.Creature => new Color(0.15f, 0.32f, 0.15f),
-            UnitType.Robot    => new Color(0.12f, 0.22f, 0.42f),
-            UnitType.Cyborg   => new Color(0.32f, 0.15f, 0.38f),
-            _                 => d.cardType == CardType.Equipment
-                                    ? new Color(0.38f, 0.20f, 0.32f)
-                                    : new Color(0.18f, 0.18f, 0.22f)
+            UnitType.Creature => new Color(0.14f, 0.40f, 0.17f), // forest green
+            UnitType.Robot    => new Color(0.14f, 0.26f, 0.52f), // steel blue
+            UnitType.Cyborg   => new Color(0.40f, 0.14f, 0.48f), // violet
+            _                 => new Color(0.20f, 0.20f, 0.25f)
         };
     }
 }
